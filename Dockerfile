@@ -1,8 +1,9 @@
-FROM ghcr.io/berriai/litellm:main-latest
+FROM python:3.11-slim
 
-COPY config.yaml /app/config.yaml
-COPY start.sh /app/start.sh
+WORKDIR /app
 
-RUN chmod +x /app/start.sh
+RUN pip install fastapi httpx uvicorn --no-cache-dir
 
-ENTRYPOINT ["/app/start.sh"]
+COPY proxy.py .
+
+CMD ["sh", "-c", "uvicorn proxy:app --host 0.0.0.0 --port $PORT"]
