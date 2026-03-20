@@ -6,4 +6,4 @@ model_list:
       api_key: os.environ/NVIDIA_NIM_API_KEY
 
 general_settings:
-  master_key: sk-live-YoMUVV3Fv6eOIR5VjLfKKnKWY5gmtzlL
+  master_key: os.environ/LITELLM_MASTER_KEY
