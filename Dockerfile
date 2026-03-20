@@ -2,4 +2,4 @@ FROM ghcr.io/berriai/litellm:main-latest
 
 COPY config.yaml /app/config.yaml
 
-CMD ["--config", "/app/config.yaml", "--port", "8080", "--num_workers", "1"]
+CMD ["sh", "-c", "litellm --config /app/config.yaml --port $PORT --num_workers 1"]
