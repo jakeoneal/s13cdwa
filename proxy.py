@@ -46,21 +46,17 @@ async def chat(request: Request):
     check_auth(request)
     body = await request.json()
     body["model"] = NIM_MODEL
+    body["stream"] = True  # Force streaming so NIM responds immediately
 
     headers = {
         "Authorization": f"Bearer {NIM_API_KEY}",
         "Content-Type": "application/json"
     }
 
-    stream = body.get("stream", False)
+    async def generate():
+        async with httpx.AsyncClient(timeout=300) as client:
+            async with client.stream("POST", f"{NIM_BASE}/chat/completions", json=body, headers=headers) as r:
+                async for chunk in r.aiter_bytes():
+                    yield chunk
 
-    async with httpx.AsyncClient(timeout=120) as client:
-        if stream:
-            async def generate():
-                async with client.stream("POST", f"{NIM_BASE}/chat/completions", json=body, headers=headers) as r:
-                    async for chunk in r.aiter_bytes():
-                        yield chunk
-            return StreamingResponse(generate(), media_type="text/event-stream")
-        else:
-            r = await client.post(f"{NIM_BASE}/chat/completions", json=body, headers=headers)
-            return JSONResponse(r.json())
+    return StreamingResponse(generate(), media_type="text/event-stream")
