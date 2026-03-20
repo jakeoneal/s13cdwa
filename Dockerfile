@@ -1,5 +1,8 @@
 FROM ghcr.io/berriai/litellm:main-latest
 
 COPY config.yaml /app/config.yaml
+COPY start.sh /app/start.sh
 
-CMD ["sh", "-c", "litellm --config /app/config.yaml --port $PORT --num_workers 1"]
+RUN chmod +x /app/start.sh
+
+ENTRYPOINT ["/app/start.sh"]
