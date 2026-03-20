@@ -2,15 +2,24 @@ import os
 import httpx
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 import json
 
 app = FastAPI()
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 NIM_API_KEY = os.environ["NVIDIA_NIM_API_KEY"]
 MASTER_KEY = os.environ["LITELLM_MASTER_KEY"]
 NIM_BASE = "https://integrate.api.nvidia.com/v1"
-MODEL_ALIAS = "deepseek-v3.2"
-NIM_MODEL = "deepseek-ai/deepseek-v3.2"
+MODEL_ALIAS = "deepseek-v3"
+NIM_MODEL = "deepseek-ai/deepseek-v3"
 
 def check_auth(request: Request):
     auth = request.headers.get("Authorization", "")
@@ -18,6 +27,7 @@ def check_auth(request: Request):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 @app.get("/v1/models")
+@app.get("/models")
 async def list_models(request: Request):
     check_auth(request)
     return JSONResponse({
@@ -31,6 +41,7 @@ async def list_models(request: Request):
     })
 
 @app.post("/v1/chat/completions")
+@app.post("/chat/completions")
 async def chat(request: Request):
     check_auth(request)
     body = await request.json()
