@@ -21,8 +21,8 @@ NIM_BASE = "https://integrate.api.nvidia.com/v1"
 def get_config():
     return {
         "model_alias": os.environ.get("MODEL_ALIAS", "deepseek-v3"),
-        "nim_model": os.environ.get("NIM_MODEL", "deepseek-ai/deepseek-v3"),
-        "force_stream": os.environ.get("FORCE_STREAM", "false").lower() == "true",
+        "nim_model": os.environ.get("NIM_MODEL", "deepseek-ai/deepseek-v3.2"),
+        "thinking": os.environ.get("THINKING_MODE", "false").lower() == "true",
     }
 
 def check_auth(request: Request):
@@ -58,25 +58,18 @@ async def chat(request: Request):
     config = get_config()
     body = await request.json()
     body["model"] = config["nim_model"]
-
-    if config["force_stream"]:
-        body["stream"] = True
-    else:
-        body["stream"] = False
+    body["stream"] = True
+    body["extra_body"] = {"chat_template_kwargs": {"thinking": config["thinking"]}}
 
     headers = {
         "Authorization": f"Bearer {NIM_API_KEY}",
         "Content-Type": "application/json"
     }
 
-    if body["stream"]:
-        async def generate():
-            async with httpx.AsyncClient(timeout=300) as client:
-                async with client.stream("POST", f"{NIM_BASE}/chat/completions", json=body, headers=headers) as r:
-                    async for chunk in r.aiter_bytes():
-                        yield chunk
-        return StreamingResponse(generate(), media_type="text/event-stream")
-    else:
+    async def generate():
         async with httpx.AsyncClient(timeout=300) as client:
-            r = await client.post(f"{NIM_BASE}/chat/completions", json=body, headers=headers)
-            return JSONResponse(r.json())
+            async with client.stream("POST", f"{NIM_BASE}/chat/completions", json=body, headers=headers) as r:
+                async for chunk in r.aiter_bytes():
+                    yield chunk
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
