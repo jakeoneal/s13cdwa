@@ -1,5 +1,6 @@
 import os
 import httpx
+import json
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,7 +24,20 @@ def get_config():
         "model_alias": os.environ.get("MODEL_ALIAS", "deepseek-v3"),
         "nim_model": os.environ.get("NIM_MODEL", "deepseek-ai/deepseek-v3.2"),
         "thinking": os.environ.get("THINKING_MODE", "false").lower() == "true",
+        "debug": os.environ.get("DEBUG", "false").lower() == "true",
     }
+
+def debug_log(config, label, data):
+    if not config["debug"]:
+        return
+    print(f"\n{'='*50}")
+    print(f"DEBUG [{label}]")
+    print('='*50)
+    if isinstance(data, (dict, list)):
+        print(json.dumps(data, indent=2))
+    else:
+        print(data)
+    print('='*50 + "\n")
 
 def check_auth(request: Request):
     auth = request.headers.get("Authorization", "")
@@ -61,15 +75,39 @@ async def chat(request: Request):
     body["stream"] = True
     body["extra_body"] = {"chat_template_kwargs": {"thinking": config["thinking"]}}
 
+    if config["debug"]:
+        messages = body.get("messages", [])
+        for msg in messages:
+            role = msg.get("role", "unknown").upper()
+            content = msg.get("content", "")
+            debug_log(config, f"{role} MESSAGE", content)
+
     headers = {
         "Authorization": f"Bearer {NIM_API_KEY}",
         "Content-Type": "application/json"
     }
 
+    accumulated_response = []
+
     async def generate():
         async with httpx.AsyncClient(timeout=300) as client:
             async with client.stream("POST", f"{NIM_BASE}/chat/completions", json=body, headers=headers) as r:
                 async for chunk in r.aiter_bytes():
+                    if config["debug"]:
+                        try:
+                            text = chunk.decode("utf-8")
+                            for line in text.splitlines():
+                                if line.startswith("data: ") and line != "data: [DONE]":
+                                    data = json.loads(line[6:])
+                                    delta = data.get("choices", [{}])[0].get("delta", {})
+                                    content = delta.get("content", "")
+                                    if content:
+                                        accumulated_response.append(content)
+                        except Exception:
+                            pass
                     yield chunk
+
+        if config["debug"] and accumulated_response:
+            debug_log(config, "ASSISTANT RESPONSE", "".join(accumulated_response))
 
     return StreamingResponse(generate(), media_type="text/event-stream")
